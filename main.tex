@@ -1,0 +1,339 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{mathtools}
+\usepackage{amsfonts}
+\usepackage{xcolor}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\title{logistic hmm}
+\author{filipaoliveirarente }
+\date{December 2019}
+
+\begin{document}
+
+\maketitle
+
+\noindent
+\textcolor{red}{explicar regressão logística}
+\section{Inclusion of external features information}
+
+
+Notation
+\begin{itemize}
+    \item $o_{1:T}$: observation sequence;
+    \item $\boldsymbol{v} = \{v_1,...,v_m\}, |\boldsymbol{v}|=m$: set of $m$ observable values;
+    \item $s_{1:T}$: state sequence;
+    \item $\Vec{c_t} \in \mathbb{R}^{p+1}$: feature vector (with $p$ features \footnote{The additional dimension accounts for the bias (or intercept) $\beta_{ij0}$ of the logistic regression weights $\beta_{ij} = \begin{bmatrix} \beta_{ij0}\\
+    \beta_{ij1} \\ \vdots \\ \beta_{ijp} \end{bmatrix} \in \mathbb{R}^{p+1}$. Therefore $c_t = \begin{bmatrix} 1\\
+    c_{t1} \\ \vdots \\ c_{tp} \end{bmatrix} \in \mathbb{R}^{p+1}$.}) of time $t=1,...,T$;
+    \item $\boldsymbol{A^{(t)}}\in \mathbb{R}^{k \times k}$: transition matrix of time $t$ (with $k$ states), where element $A_{ij}^{(t)}$ represents the probability of a transition from state $i$ at time $t$ to state $j$ at time $t+1$;
+    \item $\boldsymbol{B} \in \mathbb{R}^{k \times m}$: emission matrix, where element $B_{il}$ represents the probability of observing the $l^{th}$ value in the set of observable values $\boldsymbol{v}$  while in state $i$. We will consider that the emissions are Poisson, and therefore instead of an emission matrix $\boldsymbol{B}$ we will have $k$ Poisson parameters $\boldsymbol{\lambda} = [\lambda_1,...,\lambda_i,...,\lambda_k]$, one for each state $i=1,...,k$. The probabilities we are interested in are $\mathbb{P}(o_t|s_t=i)= Poisson(o_t, \lambda_i) = \dfrac{e^{-\lambda_i} \lambda_i^{o_t}}{o_t!}.$
+    \item $\boldsymbol{\pi} \in \mathbb{R}^k:$ initial distribution of states. Element $\pi_i=\mathbb{P}(s_1=i)$ represents the probability of the first state being $i$.
+    %\item Q: some unknown distribution over the states.
+\end{itemize}
+\iffalse
+(De acordo com a notação de Stanford que a Zita mandou,)
+\[\hat{A},\hat{B} = \underset{A,B}{argmax} \sum_{\Vec{z}}Q(\Vec{z}) \log \dfrac{P(\Vec{x},\Vec{z};A,B)}{Q(z)}\]
+\begin{equation}
+    \underset{Bayes}{=}\underset{A,B}{argmax} \sum_{\Vec{z}}Q(\Vec{z}) \log P(\Vec{x}|\Vec{z};A,B)P(\Vec{z};A,B)
+    \label{eq1}
+\end{equation}
+where
+\[P(\Vec{x}|\Vec{z};A,B)=\prod_{t=1}^T P(x_t|z_t;B) = \prod_{t=1}^T B_{z_t,x_t}\]
+and
+\[P(\Vec{z};A,B)=\prod_{t=1}^T P(z_t|z_{t-1},c_{t-1};A, \beta) = \prod_{t=1}^T \dfrac{P(z_t,z_{t-1},c_{t-1};A, \beta)}{P(z_{t-1},c_{t-1})}\]
+\noindent
+Variables $c_{t-1}$ and $z_{t-1}$ are independent because we assume that the feature vector conditions only the next state. Therefore, $P(z_{t-1},c_{t-1}) = P(z_{t-1})P(c_{t-1})$. Replacing and using Bayes'theroem again in the numerator, yields:
+\[= \prod_{t=1}^T \dfrac{P(z_t,z_{t-1}|c_{t-1};A, \beta)P(c_{t-1})}{P(z_{t-1})P(c_{t-1})} = \prod_{t=1}^T \dfrac{P(z_t,z_{t-1}|c_{t-1};A, \beta)}{P(z_{t-1})}\]
+Since $z_t$ depends on both the previous state $z_{t-1}$ and the previous feature vector $c_{t-1}$ and $z_{t-1}$ does not depend on any of them, the numerator becomes:
+\[= \prod_{t=1}^T \dfrac{P(z_t|c_{t-1};\beta)P(z_t|z_{t-1};A)P(z_{t-1})}{P(z_{t-1})} = \prod_{t=1}^T P(z_t|c_{t-1};\beta) P(z_t|z_{t-1};A)\]
+where the first term comes from the logistic regression and the second term from the transition matrix A:
+\[=\prod_{t=1}^T L_{z_t,c_{t-1}}A_{z_{t-1},z_t}\]
+where L represents the logistic regression formulae. For state $z_t=j$ and feature vector $c_{t-1}=c\in \mathbb{R}^{p}$, with $p$ being the total number of features, the logistic regression formulae is given by:
+\[L_{z_t,c_{t-1}}=f(\beta^{(j)},c)=P(z_t=j|c_{t-1}=c;\beta^{(j)})=\dfrac{e^{\beta^{(j)}\cdot c}}{\sum_{l=1}^k e^{\beta^{(l)}\cdot c}}\]
+Equation \eqref{eq1} becomes:
+\[\underset{A,B}{argmax} \sum_{\Vec{z}}Q(\Vec{z})\sum_{t=1}^T \log B_{z_t, x_t} + \log A_{z_{t-1}, z_t} + \log L_{z_t, c_{t-1}}\]
+\[= \underset{A,B}{argmax} \sum_{\Vec{z}}Q(\Vec{z})\sum_{i=1}^k\sum_{j=1}^k \sum_{m=1}^{|V|}\sum_{t=1}^T \textbf{1}\{z_t=s_j \wedge x_t=v_m\}\log B_{jm} + \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\}\log A_{ij} + \]
+\[ + \textbf{1}\{z_t=s_j\}\log f(\beta^{(j)},c_{t-1})\]
+\textcolor{red}{Aqui eu duvido que não seja preciso marginalizar nas features c, porque supostamente não podemos ter coisas a depender do tempo aqui}\\ \noindent
+Consideramos então que o último termo não é uma função de $\beta^{(j)}$ e $c_{t-1}$ mas  apenas $c_j$, ficando $\textbf{1}\{z_t=s_j\}\log c_j$.
+Assim, as constraints são:
+\begin{table}[!htb]
+    \centering
+    \begin{tabular}{c|c}
+    \toprule
+        Constraints & Lagrangian \\
+        \midrule
+         $\sum_{m=1}^{|V|} B_{jm}=1 \quad \forall j\in[k]$ & $+\sum_{j=1}^k\epsilon_j (1-\sum_{m=1}^{|V|} B_{jm})$ \\
+         $\sum_{j=1}^k A_{ij}c_j=1 \quad \forall i\in[k]$ & $+\sum_{i=1}^k\delta_i (1-\sum_{j=1}^k A_{ij}c_j)$ \\
+         \bottomrule
+    \end{tabular}
+    \caption{Caption}
+    \label{tab:my_label}
+\end{table}
+
+Parameter estimation for $A_{ij}$:
+\[ \dfrac{\partial LL}{\partial A_{ij}}= \sum_{\Vec{z}}Q(\Vec{z}) \dfrac{1}{A_{ij}}\sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\}- \delta_i c_j = 0 \Longleftrightarrow\]
+\begin{equation}
+    A_{ij} = \dfrac{1}{\delta_i c_j} \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\}
+    \label{Aij}
+\end{equation}
+We need to find both the lagrangian $\delta_i$ and the parameter $c_j$. Likewise:
+\[ \dfrac{\partial LL}{\partial \delta_i}= 1-\sum_{j=1}^k A_{ij}c_j = 0 \Longleftrightarrow \sum_{j=1}^k \dfrac{1}{\delta_i c_j}c_j \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\} = 1 \Longleftrightarrow \]
+\[\delta_i = \sum_{j=1}^k \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\} \Longleftrightarrow\]
+\begin{equation}
+   \delta_i = \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i\}
+   \label{deltai}
+\end{equation}
+\[ \dfrac{\partial LL}{\partial c_j}= \sum_{i=1}^k \delta_i (1-A_{ij}) = 0 \Longleftrightarrow \sum_{i=1}^k \delta_i \Bigg(1- \dfrac{1}{\delta_i c_j} \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\}\Bigg) = 0 \Longleftrightarrow \]
+\[\Longleftrightarrow \sum_{i=1}^k \delta_i -\sum_{i=1}^k  \dfrac{1}{c_j} \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\} = 0 \Longleftrightarrow\]
+\[\Longleftrightarrow \dfrac{1}{c_j}\sum_{i=1}^k \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\} = \sum_{i=1}^k \delta_i \Longleftrightarrow\]
+\[\Longleftrightarrow c_j =\dfrac{\sum_{i=1}^k \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\}}{\sum_{i=1}^k \delta_i} \Longleftrightarrow\]
+\[\Longleftrightarrow c_j =\dfrac{\sum_{i=1}^k \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\}}{\sum_{i=1}^k \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i\}} \Longleftrightarrow\]
+\[\Longleftrightarrow c_j =\dfrac{\sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_t=s_j\}}{\sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \sum_{i=1}^k \textbf{1}\{z_{t-1}=s_i\}}\]
+Since $\sum_{i=1}^k \textbf{1}\{z_{t-1}=s_i\}=1$ then $\sum_{t=1}^T  \sum_{i=1}^k \textbf{1}\{z_{t-1}=s_i\}=T$. Replacing, we finally obtain:
+\begin{equation}
+     c_j =\dfrac{\sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_t=s_j\}}{T\sum_{\Vec{z}}Q(\Vec{z})} \label{cj}
+\end{equation}
+Finally, replacing eqs. \eqref{deltai} and \eqref{cj} in \eqref{Aij}, we obtain:
+\begin{equation}
+    A_{ij} = \dfrac{T\sum_{\Vec{z}}Q(\Vec{z})}{\sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i\} \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_t=s_j\}} \sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_{t-1}=s_i \wedge z_t=s_j\}
+    \label{Aij_final}
+\end{equation}
+From the Stanford doc, we know that: $\sum_{\Vec{z}}Q(\Vec{z}) \sum_{t=1}^T  \textbf{1}\{z_t=s_j\}$ is obtained recursively from:
+\[\dfrac{1}{P(\Vec{x};A,B)} \sum_{t=1}^T \alpha_i(t) A_{ij} B_{jx_t} \beta_j(t+1)\]. Therefore, the terms in eq. \eqref{Aij_final} are simply summations (over $i=1,...,k$, $j=1,...,k$ or both) of this recursion.
+\\ \noindent
+\textcolor{red}{However, if we consider that $c_j$ is actually a function of the weights ($\beta$) of the logistic regression, then we need to do the chain rule of derivations:}
+\[\dfrac{\partial LL}{\partial \beta^{(j)}}=\dfrac{\partial LL}{\partial \beta^{(j)}}\dfrac{\partial f(\beta^{(j)},c)}{\partial \beta_j} = \dfrac{\partial LL}{\partial f(\beta^{(j)},c)} f'(\beta^{(j)},c) \]
+\textcolor{red}{pois aqui é que eu nao sei porque tenho de fixar não só o estado j como também a feature c, e como é dimensional (p features), tenho de estimar para cada feature p, certo?... como os lambdas do poisson}
+\fi
+First option to add information about external features to the model is to consider that the transitions between states of the model are of the form:
+\begin{equation}
+    A_{ij}^{(t)} = A_{ij} \dfrac{e^{\beta_{j}^T \cdot c_t}}{\sum_{g=1}^k  e^{\beta_{g}^T\cdot c_t}} =  A_{ij} {\pi_j}^{(t)}\in [0,1],
+    \label{old_A_ijt}
+\end{equation}
+where the HMM transition probability $A_{ij}$ is multiplied by a time varying factor that depends on the external features $c_t$ at time $t$ and the state $j$ to where the system will transit to at time $t+1$. The product can also be visualized in matrix form:
+\begin{equation}
+   \boldsymbol{A}^{(t)} = \boldsymbol{A}_{(k\times k)} \odot \begin{bmatrix}
+    \pi_{1}^{(t)} & ... & \pi_{1}^{(t)}\\
+    \pi_{2}^{(t)} & ... & \pi_{2}^{(t)}\\
+    \vdots & ... & \vdots\\
+    \pi_{k}^{(t)} &  ... & \pi_{k}^{(t)}\end{bmatrix}_{(k \times k)} = \boldsymbol{A} \odot \boldsymbol{\pi}^{(t)}.
+\end{equation}
+Note that the product is element-wise. The interpretation of each element $(i,j)$ in the resulting matrix $\boldsymbol{A}^{(t)}$ is: the probability of transitioning, at time $t$, from state $i$ to state $j$ jointly with the probability that the feature vector at time $t$, $c_t$, belongs to class $j$. \\ \noindent
+The HMM transition matrix $\boldsymbol{A}$ sums to 1 in the rows, since $\sum_{j=1}^k A_{ij}=1$ and the logistic class probabilities $\boldsymbol{\pi}$ sums to 1 in the columns, since $\sum_{i=1}^k \pi_i^{(t)} = 1$. The resulting product needs to be normalized so that it corresponds to a probability distribution, i.e., we need to guarantee that the rows of the resulting matrix $\boldsymbol{A}^{(t)}$ sum to 1. \\ \noindent
+The problem with this approach is that the product is not "optimization-friendly". That is, if we run EM to estimate $\boldsymbol{A}$ independently, and use a numerical method (e.g. Newton-Raphson method) to obtain the weights of the logistic regression and then multiply both, and further use the resulting non-stationary matrix as the input of the EM for the next iteration, the HMM transition matrix $\boldsymbol{A}$ will not be correctly estimated because the soft counts are biased by the information provided by the logistic regression.
+\\ \\ \noindent 
+Nonetheless, we can consider a simpler model, where the transitions are only characterized by the logistic regression:
+\begin{equation}
+    A_{ij}^{(t)} = \mathbb{P}(s_{t+1}=j|s_{t}=i) = \dfrac{e^{\beta_{ij}^T \cdot c_t}}{\sum_{g=1}^k  e^{\beta_{ig}^T\cdot c_t}} \in [0,1]
+    \label{A_ijt}
+\end{equation}
+By removing the product in equation \eqref{old_A_ijt}, the complexity of the estimation problem is reduced. The likelihood of this model is given by:
+\[\mathbb{P}(s_1)\mathbb{P}(o_1|s_1)\prod_{t=1}^{T-1} \mathbb{P}(o_{t+1}|s_{t+1}) \mathbb{P}(s_{t+1}|s_{t}) =\]
+\[=\pi_{s_1}\mathbb{P}(o_1|s_1)\prod_{t=1}^{T-1} \mathbb{P}(o_{t+1}|s_{t+1}) \prod_{i=1}^k \prod_{j=1}^k \big(\mathbb{P}(s_{t+1}=j|s_{t}=i)\big)^{\textbf{1}\{s_{t}=i \wedge s_{t+1}=j\}}\]
+The log-likelihood (LL) is (dropping the terms that do not depend on the parameters $\beta$):
+\[LL = %\log(\pi_{s_1}\mathbb{P}(o_1|s_1)) + \sum_{t=1}^T \log \mathbb{P}(o_t|s_t)+
+\sum_{t=1}^{T-1} \sum_{i=1}^k \sum_{j=1}^k \textbf{1}\{s_{t}=i\wedge s_{t+1}=j\} \log \mathbb{P}(s_{t+1}=j|s_{t}=i) = \]
+\[=\sum_{t=1}^{T-1} \sum_{i=1}^k \sum_{j=1}^k \textbf{1}\{s_{t}=i\wedge s_{t+1}=j\} \log \dfrac{e^{\beta_{ij}^T \cdot c_t}}{\sum_{g=1}^k  e^{\beta_{ig}^T \cdot c_t}} \Longleftrightarrow\]
+\begin{equation}
+    \Longleftrightarrow LL = \sum_{t=1}^{T-1} \sum_{i=1}^k \sum_{j=1}^k \textbf{1}\{s_{t}=i\wedge s_{t+1}=j\} \Bigg (\beta_{ij}^T \cdot c_t - \log \Big (\sum_{g=1}^k e^{\beta_{ig}^T \cdot c_t}\Big) \Bigg)
+    \label{log_likelihood}
+\end{equation}
+Constraints:
+\[\sum_{j=1}^k \mathbb{P}(s_{t+1}=j|s_{t}=i) = 1 \Longleftrightarrow \sum_{j=1}^k \dfrac{e^{\beta_{ij}^T \cdot c_t}}{\sum_{g=1}^k  e^{\beta_{ig}^T \cdot c_t}} = 1 \qquad \forall t=1,...,T-1 , \quad \forall i=1,...,k.\]
+This is implicitly satisfied.
+\\ \\ \noindent
+Parameter estimation of $\beta_{ij} \in \mathbb{R}^{p+1}$, where $p$ is the total number of features: first step is deriving the log-likelihood, fixing one feature $z\in\{1,...,p\}$:
+\begin{equation}
+    \dfrac{\partial LL}{\partial \beta_{ijz}} = \sum_{t=1}^{T-1} \textbf{1}\{s_{t}=i\wedge s_{t+1}=j\} \Bigg(c_{tz} - \dfrac{c_{tz}e^{\beta_{ij}^T \cdot c_t}}{\sum_{g=1}^k  e^{\beta_{ig}^T \cdot c_t}} \Bigg),
+    \label{partial_bijz}
+\end{equation}
+where $c_{tz}$ is the $z^{th}$ feature of feature vector $c_t \in \mathbb{R}^{p+1}$. \\ \noindent
+Here we implicitly considered that the state sequence is observed. However, in real scenarios the state sequence is hidden and we only observe the feature vector $\Vec{c_t}$ and the observation sequence $o_{1:T}$. Therefore, the hard count $\textbf{1}\{s_{t}=i\wedge s_{t+1}=j\}$ is not available, which we need to replace by the soft counts, or, in other words, the transition posteriors learnt by the model.
+To derive the expression for the soft counts we need to account for all combinations of state sequences in the likelihood in equation \eqref{log_likelihood}. For notation, $\sum_{\Vec{s}}$ will denote all state sequence combinations. For example, if we consider $k=2$ states, $\Vec{s}=\{ \{1,1\}, \{1,2\}, \{2,1\}, \{2,2\}\}$. The steps of the derivation are similar, so we will skip to the parameter estimation of $\beta_{ij}\in \mathbb{R}^{p+1}$, in eq.\eqref{partial_bijz}, which becomes:
+\[\dfrac{\partial LL}{\partial \beta_{ijz}} = \sum_{t=1}^{T-1} \sum_{\Vec{s}} Q(\Vec{s}) \textbf{1}\{s_{t}=i\wedge s_{t+1}=j\} \Bigg(c_{tz} - \dfrac{c_{tz}e^{\beta_{ij}^T \cdot c_t}}{\sum_{g=1}^k  e^{\beta_{ig}^T \cdot c_t}} \Bigg) =\]
+\begin{equation}
+    =\sum_{t=1}^{T-1} \sum_{\Vec{s}} Q(\Vec{s}) \textbf{1}\{s_{t}=i\wedge s_{t+1}=j\} \Bigg(1 -  A_{ij}^{(t)} \Bigg)c_{tz},
+    \label{partial_bijz2}
+\end{equation}
+where $A_{ij}^{(t)}$ is given by eq. \eqref{A_ijt} and $Q(\Vec{s})=\mathbb{P}(\Vec{s}|\Vec{o}; \boldsymbol{A}, \boldsymbol{\lambda}, \boldsymbol{\beta})$ represents the probability distribution of the state sequence, conditioned on the observation sequence and model parameters. \\ \noindent
+The term $\sum_{\Vec{s}} Q(\Vec{s}) \textbf{1}\{s_{t}=i\wedge s_{t+1}=j\}$ in eq. \eqref{partial_bijz2} corresponds to the transition posterior hereby denoted $\gamma_t(i,j)$. These posteriors are obtained in the E-step of the EM algorithm, as a sufficient statistic (expected/soft count) proportional to the probability of transitioning between state $i$ and state $j$ at time $t$. To compute this, the forward ($\mathcal{F}$) and backward ($\mathcal{B}$) variables resulting from the forward-backward algorithm are used: $\gamma_t(i,j) = \mathcal{F}_i(t)A_{ij}^{(t)} B_{jo_{t+1}} \mathcal{B}_j(t+1)$.
+The first term is the forward variable $\mathcal{F}_i(t) = \mathbb{P}(o_{1:t}, s_t=i; \boldsymbol{A^{(t)}}, \boldsymbol{\lambda}, \boldsymbol{\pi})$, the second term is the transition probability as defined in eq. \eqref{A_ijt}, the third term is the Poisson probability of observation $o_{t+1}$ in state $j$, i.e., $B_{jo_{t+1}} = \mathbb{P}(o_{t+1}|s_t=j; \boldsymbol{\lambda})=Poisson(o_{t+1},\lambda_j)=\dfrac{e^{-\lambda_j} \lambda_j^{o_{t+1}}}{o_{t+1}!}$ and, finally, the last term is the backward variable $\mathcal{B}_j(t+1) = \mathbb{P}(o_{t+2:T}, s_{t+1}=j;\boldsymbol{A^{(t)}}, \boldsymbol{\lambda})$.
+The partial derivative of the log-likelihood with respect to the one feature $z$ of weights $\beta_{ij}$ of the logistic regression becomes \footnote{This equation is similar to eq.(9) in [\textcolor{red}{ref https://www.stat.cmu.edu/~cshalizi/350/lectures/26/lecture-26.pdf}], where the parameter estimation problem is formulated for a simple logistic regression model, without the hidden Markov model setting.}:
+\begin{equation}
+    \dfrac{\partial LL}{\partial \beta_{ijz}} =\sum_{t=1}^{T-1} \Bigg(\gamma_t(i,j) -  \gamma_t(i,j) A_{ij}^{(t)} \Bigg)c_{tz} = 0.
+    \label{partial_bijz2}
+\end{equation}
+It is not possible to set the derivative  of eq. \eqref{partial_bijz2} equal to zero analytically. Instead, one numerical method must be implemented (e.g. Newton's method) to obtain the logistic regression weights. \\ \noindent
+To do so, $k$ Newtons' blocks need to be solved, one for each class (or state) $i=1,...,k$:
+\begin{equation}
+    \beta_i = Newton(\Vec{c_{t*}}, \Vec{\gamma}_{t*}(i, \cdot)) \in \mathbb{R}^{(p+1) \times k}.
+    \label{newton_block}
+\end{equation}
+The inputs of the $i^{th}$ Newton block in eq. \eqref{newton_block} are: 
+\begin{itemize}
+    \item A subset of the feature vector $\Vec{c}$ which selects only the features in the (discrete) time instants $t*$. These correspond to the instants where the model predicted that there was a transition from state $i$ (to any other state). These predictions come from the state sequence, predicted by the model in the \textit{Viterbi} algorithm, which we run simultaneously with the E-step of the EM algorithm.\footnote{The state sequence, predicted by the model in the \textit{Viterbi} algorithm, is obtained by computing the \textit{argmax} of the state posteriors at each timestamp.}
+    That is, after the E-step, we calculate the predicted state sequence $\hat{s}$ and we store the indexes where there occurs a transition from state $i$ in $\hat{s}$. Those indexes correspond to the time instants $t*$. Let's say that the number of time instants $t*$ is $L$, then $\Vec{c_{t*}}\in \mathbb{R}^{L \times (p+1)}$.
+    \item The transition posteriors from state $i$ to all states $\Vec{\gamma}_{t*}(i, \cdot) \in \mathbb{R}^{L \times k}$, also selected only in the time instants $t*$. In fact, instead of the state transition posteriors $\Vec{\gamma}$, we use the normalized transition probabilities from the M-step $\hat{A}_{i(\cdot)}^{(t*)}$.
+\end{itemize}The output of the $i^{th}$ Newton block in eq. \eqref{newton_block} is the weight vector $\beta_i \in \mathbb{R}^{(p+1)\times k} = [\beta_{i1},...,\beta_{ik}]$. Therefore,
+\begin{equation}
+    \boldsymbol{\beta} = [\beta_1, \beta_2,...,\beta_i,...,\beta_k] = \begin{bmatrix}
+    \beta_{11} & \beta_{21} & ... & \beta_{k1}\\
+    \vdots & ... & \beta_{ij} & \vdots\\
+    \beta_{1k} & \beta_{2k} & ... & \beta_{kk}
+        
+    \end{bmatrix} \in \mathbb{R}^{k\times k},
+\end{equation}
+where $\beta_{ij} \in \mathbb{R}^{p+1}$. \\ \noindent
+Due to the fact that the \textit{argmax} computation brings uncertainty to the estimation of the state sequence, its use should be avoided. Following that mindset, another option is to solve only one Newton block where instead of selecting features and labels, we input all the features $\Vec{c} \in \mathbb{R}^{T \times (p+1)}$ and all the transition probabilities $\hat{A} \in \mathbb{R}^{T \times (k \times k)}$ as labels. That is,
+\begin{equation}
+    \beta_i = Newton(\Vec{c}, \hat{A}) \in \mathbb{R}^{(p+1)\times k \times k}.
+    \label{newton_block2}
+\end{equation}
+This changes the way we later update the transition probabilities with the resulting weights $\beta$ because in this case, since we are feeding the Newton block with all inputs at the same time, the normalization is different. The joint probability is
+\begin{equation}
+    \mathbb{P}(s_{t+1}=j,s_{t}=i) = \dfrac{e^{\beta_{ij}^T \cdot c_t}}{\sum_{h=1}^k \sum_{g=1}^k  e^{\beta_{hg}^T\cdot c_t}}.
+    \label{joint_prob}
+\end{equation}
+The transition probability $\hat{A}_{ij}^{(t)}$ is obtained, using Bayes' rule, as:
+\begin{equation}
+    \hat{A}_{ij}^{(t)} = \mathbb{P}(s_{t+1}=j|s_{t}=i) = \dfrac{ \mathbb{P}(s_{t+1}=j,s_{t}=i)}{ \mathbb{P}(s_{t}=i)} = \dfrac{ \mathbb{P}(s_{t+1}=j,s_{t}=i)}{\sum_{j=1}^k \mathbb{P}(s_{t+1}=j,s_{t}=i)}.
+    \label{Aijt_1N}
+\end{equation}
+By replacing the definition of eq. \eqref{joint_prob} in eq. \eqref{Aijt_1N}, we obtain the desired transition probability. To summarize, after obtaining the weights from the Newton algorithm, we only need to create the joint probability $(k\times k)$ and normalize it in the rows so that the each probability distribution sums to 1.
+
+
+\textcolor{red}{Aqui nos dados sintéticos os resultados davam piores em termos de mse da matriz de transição}
+
+\section{Newton method}
+It is well known that the logistic regression problem has no closed form solution given that the sigmoid function is non linear. However, the minimum can be found through iterative methods like \textit{Newton-Raphson}. The update function of the parameters/weights $w$ in \textit{Newton-Raphson} method is as follows
+\begin{equation}
+    w^{\text{(new)}} = w^{\text{(old)}}-H^{-1}\bigtriangledown E(w),
+\end{equation}
+where H is the Hessian matrix, given by the second derivative of the error function of the weights, $E(w)$, and $\bigtriangledown$ represents the gradient w.r.t the weights $w$.
+
+\subsection{Two classes}
+In this case, we consider only two classes for the logistic regression model (e.g. either a patient is diabetic or it isn't). We have $N$ data points and for each data point we have the class probability $\{y_n\}_{n=1}^N = P(\text{class } 1|\phi_n)$ and the indicator variable $t_n\in\{0,1\}$. 
+The class probability is given by
+\begin{equation}
+    y_n = \sigma(\phi_n \textbf{w}) = \dfrac{e^{\phi_n \cdot w}}{1+e^{\phi_n \cdot w}}.
+\end{equation}
+A data point with $t_n=0$ means that the features $\phi_n$ are classified as class 1. On the other hand, a data point with $t_n=1$ means that the features $\phi_n$ are classified as class 2. However, since we only have two classes, they are both dependent and, therefore, we have: $P(\text{class } 1|\phi_n)=1-P(\text{class } 2|\phi_n)$. \\ \noindent
+The likelihood function given a set of points $\{\phi_n,t_n\}$ is
+\begin{equation}
+    P(\textbf{t}|\textbf{w}) = \prod_{n=1}^N y_n^{t_n}(1-y_n)^{1-t_n}.
+\end{equation}
+The error function is the cross entropy of the model, computed as
+\begin{equation}
+    E(\textbf{w}) = -\log(P(\textbf{t}|\textbf{w})) = -\sum_{n=1}^N t_n \log(y_n) + (1-t_n) \log(1-y_n).
+\end{equation}
+The gradient of the error function is given by
+\begin{equation}
+\begin{split}
+    \bigtriangledown E(\textbf{w}) &= 
+    -\sum_{n=1}^N \bigg(t_n \dfrac{1}{y_n} +(1-t_n)\dfrac{-1}{1-y_n}\bigg)\dfrac{\partial y_n}{\partial w} \\
+    &= -\sum_{n=1}^N \bigg(\dfrac{t_n-y_n}{y_n (1-y_n)} \bigg)y_n (1-y_n) \phi_n \\
+    &=\sum_{n=1}^N (y_n-t_n)\phi_n.
+    \end{split}
+\end{equation}
+
+\subsection{Multi-class}
+In this scenario, instead of having two classes we can have multiple classes (e.g. $K$ classes) and we have an indicator variable for each class: $t_{nk}\in \{0,1\}$. The class probability also changes to $y_{nk}$ which represents the probability of the $n^{th}$ data point, with features $\phi_n$, belonging to class $k$. That is,
+\begin{equation}
+    y_{nk} = P(c_k|\phi_n) = \dfrac{e^{w_k \cdot\phi_n}}{\sum_{g=1}^K e^{w_g\cdot\phi_n}},
+\end{equation}
+with partial derivative
+\begin{equation}
+    \dfrac{\partial y_{nk}}{\partial w_j} =  \left\{
+                \begin{array}{ll}
+                 y_{nj}(1-y_{nj})\phi_n, \quad \text{if $j=k$}\\
+                  -y_{nj}y_{nk}\phi_n, \qquad \text{if $j \neq k$}.\\
+                \end{array}
+              \right.
+\end{equation}
+The likelihood is similarly modified to
+\begin{equation}
+    P(\textbf{t}|\textbf{w}) = \prod_{n=1}^N \prod_{k=1}^K P(c_k|\phi_n)^{t_{nk}} = \prod_{n=1}^N \prod_{k=1}^K {y_{nk}}^{t_{nk}} .
+\end{equation}
+The error function is the cross entropy of the model, computed as
+\begin{equation}
+    E(\textbf{w}) = -\log(P(\textbf{t}|\textbf{w})) = -\sum_{n=1}^N \sum_{k=1}^K t_{nk} \log(y_{nk}).
+\end{equation}
+The gradient of the error function is given by
+\begin{equation}
+\begin{split}
+    \bigtriangledown_{w_j} E(\textbf{w}) &=
+    -\sum_{n=1}^N \sum_{k=1}^K t_{nk} \dfrac{1}{y_{nk}}\dfrac{\partial y_{nk}}{\partial w_j}\\
+    &=-\sum_{n=1}^N \bigg(\sum_{k\neq j} t_{nk} \dfrac{-y_{nj}y_{nk}\phi_n}{y_{nk}}\bigg) + t_{nj}\dfrac{y_{nj}(1-y_{nj})\phi_n}{y_{nj}}\\
+    &=-\sum_{n=1}^N -y_{nj}\phi_n \bigg(\sum_{k} t_{nk}-t_{nj}\bigg) + t_{nj}(1-y_{nj})\phi_n\\
+    &=\sum_{n=1}^N (y_{nj}-t_{nj})\phi_n.
+\end{split}
+\end{equation}
+where we used the fact that $\sum_{k} t_{nk}=1 \quad \forall n$. \\ \noindent
+The Hessian matrix is the second derivative of the error function with respect to $w_k$. That is,
+\begin{equation}
+\begin{split}
+    H =\bigtriangledown_{w_k} \bigtriangledown_{w_j} E(w) &= \sum_{n=1}^N \phi_n \dfrac{\partial}{\partial w_k} \dfrac{e^{w_j^T\phi_n}}{\sum_g e^{w_g^T\phi_n}}\\
+    &=  \left\{
+                \begin{array}{ll}
+                  \sum_{n=1}^N y_{nj}(1-y_{nj})\phi_n \phi_n^T, \quad \text{if $j=k$}\\
+                  -\sum_{n=1}^N  y_{nk}y_{nj}\phi_n \phi_n^T, \qquad \text{if $j \neq k$}\\
+                \end{array}
+              \right.\\
+        &= \sum_{n=1}^N y_{nk}(I_{kj}-y_{nj})\phi_n \phi_n^T
+        \end{split}
+\end{equation}
+- método Newton Raphson, 
+- ver o que é diferente no código de Newton Block
+- desvantagens do método Newton-Raphson
+
+De qualquer forma, o Newton não é, de facto, o método mais rápido para
+fazer regressão logística. A razão pela qual é muito referida é que é
+muito simples e é também simples incluir um regularizador.
+
+- Soluções: old solutions BOA, more recent solutions, referir CDN, OWL-QN and LBFGS (very high level)
+
+Neste artigo https://www.csie.ntu.edu.tw/~cjlin/papers/l1.pdf tens uma
+comparação de vários métodos (com ponteiros para código). Quando este
+paper foi publicado, os métodos mais rápidos eram o CDN (coordinate
+descent with Newton steps) e o OWL-QN
+(http://proceedings.mlr.press/v37/gonga15.pdf).
+
+Em qualquer dos casos, podem sempre usar-se soft labels, porque isso
+só afecta (de modo simples) a função de custo, mas não o modo como ela
+depende dos parâmetros.
+
+Acho que para qualquer destes algoritmos deve ser fácil encontrar
+online código em várias linguagens.
+
+Se estiveres a trabalhar nisto em Python, o algoritmo usado pelo
+scikit-learn para regressão logística também é muito rápido (usa o
+LBFGS: Limited-memory Broyden–Fletcher–Goldfarb–Shanno).
+
+- regularização
+- binary search for tuning the regularization parameter
+- inicialização pesos iteração anterior
+
+\iffalse
+Escrever:
+\begin{itemize}
+    \item o que mudar no EM dos HMMs?
+    \item o que mudar no EM dos HSMMs?
+\end{itemize}
+Comparing this equation with equation (8) in the doc of logistic regression (cmu, link: \url{https://www.stat.cmu.edu/~cshalizi/350/lectures/26/lecture-26.pdf}):
+\[\dfrac{\partial l}{\partial w_j} = \sum_{i=1}^n \bigg(y_i-\dfrac{e^{b+\Vec{x_i}\cdot \Vec{w}}}{1+e^{b+\Vec{x_i}\cdot \Vec{w}}}\bigg)x_{ij}\]
+with the correspondence (LHS: theirs, RHS: mine) of:
+\begin{enumerate}
+    \item i=t
+    \item n=T
+    \item j=p
+    \item $\Vec{x} = \Vec{c}$
+    \item $[\Vec{b}, \Vec{w}] = \Vec{\beta}$
+\end{enumerate}
+we can see that both equations are very similar, although the last one only considers two classes, thus the label $y_i$ is a binary variable, $y_i \in \{0,1\}$. \\ \noindent
+\textcolor{red}{Agora como usar isto para implementar o processo de estimação para a regressão logística? o que são os inputs do modelo? 1. as features $c_t\in \mathbb{R}^p, t=1,...,T$ e a joint das state posteriors para todas as combinações de estados $i,j=1,...,k$?}
+\fi
+\end{document} 
