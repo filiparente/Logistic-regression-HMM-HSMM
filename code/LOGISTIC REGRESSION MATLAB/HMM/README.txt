@@ -1,0 +1,1 @@
+Esta pasta contém os ficheiros matlab para implementar e testar o modelo HMM com regressão logística nas transições entre estados.
